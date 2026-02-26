@@ -20,25 +20,25 @@ function App() {
 }, []);
 
 const fetchTasks = async () => {
-  const res = await axios.get("http://localhost:5000/tasks");
+  const res = await axios.get("https://mern-task-manager-esca.onrender.com/tasks");
   setTasks(res.data);
 };
 
   const addTask = async (text) => {
   if (!text.trim()) return;
 
-  await axios.post("http://localhost:5000/tasks", { text });
+  await axios.post("https://mern-task-manager-esca.onrender.com/tasks", { text });
 
   fetchTasks();
 };
 
   const deleteTask = async (id) => {
-  await axios.delete(`http://localhost:5000/tasks/${id}`);
+  await axios.delete(`https://mern-task-manager-esca.onrender.com/tasks/${id}`);
   fetchTasks();
 };
 
   const toggleTask = async (id) => {
-  await axios.put(`http://localhost:5000/tasks/${id}`);
+  await axios.put(`https://mern-task-manager-esca.onrender.com/tasks/${id}`);
   fetchTasks();
 };
 
