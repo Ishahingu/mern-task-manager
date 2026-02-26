@@ -7,6 +7,23 @@ const User = require("./models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
+// AUTH MIDDLEWARE
+const auth = (req, res, next) => {
+  const token = req.headers.authorization?.split(" ")[1];
+
+  if (!token) {
+    return res.status(401).json({ error: "No token, authorization denied" });
+  }
+
+  try {
+    const decoded = jwt.verify(token, "secretkey");
+    req.user = decoded;
+    next();
+  } catch (err) {
+    res.status(401).json({ error: "Invalid token" });
+  }
+};
+
 const app = express();
 
 app.use(cors());
@@ -74,9 +91,9 @@ app.post("/login", async (req, res) => {
 });
 
 // GET all tasks
-app.get("/tasks", async (req, res) => {
+app.get("/tasks", auth, async (req, res) => {
   try {
-    const tasks = await Task.find();
+    const tasks = await Task.find({ userId: req.user.id });
     res.json(tasks);
   } catch (error) {
     res.status(500).json({ error: "Error fetching tasks" });
@@ -84,10 +101,11 @@ app.get("/tasks", async (req, res) => {
 });
 
 // POST new task
-app.post("/tasks", async (req, res) => {
+app.post("/tasks", auth, async (req, res) => {
   try {
     const newTask = new Task({
       text: req.body.text,
+      userId: req.user.id
     });
 
     const savedTask = await newTask.save();
@@ -98,9 +116,12 @@ app.post("/tasks", async (req, res) => {
 });
 
 // DELETE task
-app.delete("/tasks/:id", async (req, res) => {
+app.delete("/tasks/:id", auth, async (req, res) => {
   try {
-    await Task.findByIdAndDelete(req.params.id);
+    await Task.findOneAndDelete({
+      _id: req.params.id,
+      userId: req.user.id
+    });
     res.json({ message: "Task deleted" });
   } catch (error) {
     res.status(500).json({ error: "Error deleting task" });
@@ -108,11 +129,16 @@ app.delete("/tasks/:id", async (req, res) => {
 });
 
 // TOGGLE task
-app.put("/tasks/:id", async (req, res) => {
+app.put("/tasks/:id", auth, async (req, res) => {
   try {
-    const task = await Task.findById(req.params.id);
+    const task = await Task.findOne({
+      _id: req.params.id,
+      userId: req.user.id
+    });
+
     task.completed = !task.completed;
     await task.save();
+
     res.json(task);
   } catch (error) {
     res.status(500).json({ error: "Error updating task" });
