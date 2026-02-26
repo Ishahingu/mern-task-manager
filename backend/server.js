@@ -1,152 +1,84 @@
-const express = require("express");
-const mongoose = require("mongoose");
-const cors = require("cors");
+import { useState } from "react";
+import axios from "axios";
 
-const Task = require("./models/Task");
-const User = require("./models/User");
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
+// ⚠️ IMPORTANT: No /auth prefix because backend ma nathi
+const API = "https://mern-task-manager-esca.onrender.com";
 
-// AUTH MIDDLEWARE
-const auth = (req, res, next) => {
-  const token = req.headers.authorization?.split(" ")[1];
+function Auth({ setUser }) {
+  const [isLogin, setIsLogin] = useState(true);
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+  });
 
-  if (!token) {
-    return res.status(401).json({ error: "No token, authorization denied" });
-  }
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
 
-  try {
-    const decoded = jwt.verify(token, "secretkey");
-    req.user = decoded;
-    next();
-  } catch (err) {
-    res.status(401).json({ error: "Invalid token" });
-  }
-};
+  const handleSubmit = async () => {
+    try {
+      if (isLogin) {
+        const res = await axios.post(`${API}/login`, {
+          email: form.email,
+          password: form.password,
+        });
 
-const app = express();
+        // Save token
+        localStorage.setItem("token", res.data.token);
 
-app.use(cors());
-app.use(express.json());
+        // Tell App user logged in
+        setUser(true);
+      } else {
+        await axios.post(`${API}/register`, form);
 
-// MongoDB connection
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB Connected"))
-  .catch((err) => console.log(err));
-
-/* ===========================
-   TASK ROUTES
-=========================== */
-// REGISTER
-app.post("/register", async (req, res) => {
-  try {
-    const { name, email, password } = req.body;
-
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ error: "User already exists" });
+        alert("Registered successfully! Now login.");
+        setIsLogin(true);
+      }
+    } catch (err) {
+      alert("Invalid credentials or server error");
     }
+  };
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+  return (
+    <div className="auth">
+      <h2>{isLogin ? "Login" : "Register"}</h2>
 
-    const newUser = new User({
-      name,
-      email,
-      password: hashedPassword
-    });
+      {!isLogin && (
+        <input
+          name="name"
+          placeholder="Name"
+          onChange={handleChange}
+        />
+      )}
 
-    await newUser.save();
+      <input
+        name="email"
+        placeholder="Email"
+        onChange={handleChange}
+      />
 
-    res.json({ message: "User registered successfully" });
-  } catch (err) {
-    res.status(500).json({ error: "Register failed" });
-  }
-});
+      <input
+        name="password"
+        type="password"
+        placeholder="Password"
+        onChange={handleChange}
+      />
 
-// LOGIN
-app.post("/login", async (req, res) => {
-  try {
-    const { email, password } = req.body;
+      <button onClick={handleSubmit}>
+        {isLogin ? "Login" : "Register"}
+      </button>
 
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(400).json({ error: "Invalid email or password" });
-    }
+      <p
+        onClick={() => setIsLogin(!isLogin)}
+        style={{ cursor: "pointer" }}
+      >
+        {isLogin
+          ? "No account? Register"
+          : "Already have account? Login"}
+      </p>
+    </div>
+  );
+}
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ error: "Invalid email or password" });
-    }
-
-    const token = jwt.sign(
-      { id: user._id },
-      "secretkey",
-      { expiresIn: "1d" }
-    );
-
-    res.json({ token, userId: user._id });
-  } catch (err) {
-    res.status(500).json({ error: "Login failed" });
-  }
-});
-
-// GET all tasks
-app.get("/tasks", auth, async (req, res) => {
-  try {
-    const tasks = await Task.find({ userId: req.user.id });
-    res.json(tasks);
-  } catch (error) {
-    res.status(500).json({ error: "Error fetching tasks" });
-  }
-});
-
-// POST new task
-app.post("/tasks", auth, async (req, res) => {
-  try {
-    const newTask = new Task({
-      text: req.body.text,
-      userId: req.user.id
-    });
-
-    const savedTask = await newTask.save();
-    res.json(savedTask);
-  } catch (error) {
-    res.status(500).json({ error: "Error creating task" });
-  }
-});
-
-// DELETE task
-app.delete("/tasks/:id", auth, async (req, res) => {
-  try {
-    await Task.findOneAndDelete({
-      _id: req.params.id,
-      userId: req.user.id
-    });
-    res.json({ message: "Task deleted" });
-  } catch (error) {
-    res.status(500).json({ error: "Error deleting task" });
-  }
-});
-
-// TOGGLE task
-app.put("/tasks/:id", auth, async (req, res) => {
-  try {
-    const task = await Task.findOne({
-      _id: req.params.id,
-      userId: req.user.id
-    });
-
-    task.completed = !task.completed;
-    await task.save();
-
-    res.json(task);
-  } catch (error) {
-    res.status(500).json({ error: "Error updating task" });
-  }
-});
-
-const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+export default Auth;
